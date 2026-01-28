@@ -19,7 +19,9 @@ import {
   Plus,
   Archive,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Key,
+  X
 } from 'lucide-react';
 import { BatchImage, OCRConfig } from './types';
 import CameraCapture from './components/CameraCapture';
@@ -45,6 +47,10 @@ const App: React.FC = () => {
   const [isZipping, setIsZipping] = useState(false);
   const [finalText, setFinalText] = useState('');
   
+  // API Key State
+  const [apiKey, setApiKey] = useState('');
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  
   // Library loading state
   const [libsLoaded, setLibsLoaded] = useState(false);
   const [libsError, setLibsError] = useState(false);
@@ -56,6 +62,28 @@ const App: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Load API Key from local storage on mount
+  useEffect(() => {
+    const storedKey = localStorage.getItem('gemini_api_key');
+    if (storedKey) {
+      setApiKey(storedKey);
+    } else {
+      setShowKeyModal(true);
+    }
+  }, []);
+
+  const handleSaveKey = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setShowKeyModal(false);
+  };
+
+  const handleRemoveKey = () => {
+    setApiKey('');
+    localStorage.removeItem('gemini_api_key');
+    setShowKeyModal(true);
+  };
 
   const checkLibs = useCallback(() => {
     setLibsError(false);
@@ -118,6 +146,12 @@ const App: React.FC = () => {
 
   const startBatchProcess = async () => {
     if (isProcessing) return;
+    
+    if (!apiKey) {
+      setShowKeyModal(true);
+      return;
+    }
+
     setIsProcessing(true);
     const updatedImages = [...images];
     let accumulatedText = finalText;
@@ -134,7 +168,8 @@ const App: React.FC = () => {
           config, 
           (progress) => {
             setImages(prev => prev.map((img, idx) => idx === i ? { ...img, progress } : img));
-          }
+          },
+          apiKey
         );
         updatedImages[i].processedText = text;
         updatedImages[i].status = 'completed';
@@ -158,7 +193,6 @@ const App: React.FC = () => {
       await generateDocx(finalText, "ScribbleToDoc_Notes");
     } catch (err) {
       console.error("Export failed:", err);
-      // generateDocx already alerts the user with the error message
     }
   };
 
@@ -186,10 +220,8 @@ const App: React.FC = () => {
         const text = img.processedText || "";
         const filename = `Note_Page_${i + 1}`;
         
-        // Add text file
         zip.file(`${filename}.txt`, text);
         
-        // Add DOCX file
         const docBlob = await generateDocxBlob(text, `Note Page ${i + 1}`);
         zip.file(`${filename}.docx`, docBlob);
       }
@@ -240,6 +272,13 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex gap-2">
+           <button 
+            onClick={() => setShowKeyModal(true)}
+            className={`p-3 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors ${!apiKey ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
+            title="API Key Settings"
+          >
+            <Key className="w-6 h-6" />
+          </button>
           <button 
             onClick={() => setDarkMode(!darkMode)}
             className="p-3 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
@@ -440,9 +479,68 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* API Key Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-xl font-bold flex items-center gap-2">
+                <Key className="w-5 h-5 text-primary-500" />
+                Enter API Key
+              </h2>
+              {apiKey && (
+                 <button onClick={() => setShowKeyModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                   <X className="w-5 h-5" />
+                 </button>
+              )}
+            </div>
+           
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              To use the handwriting recognition features, you need a Google Gemini API Key. The key is stored locally on your device.
+            </p>
+
+            <form onSubmit={(e) => { e.preventDefault(); const val = (e.target as any).keyInput.value; if(val) handleSaveKey(val); }}>
+              <input 
+                name="keyInput"
+                type="password" 
+                placeholder="AIza..." 
+                defaultValue={apiKey}
+                className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl mb-4 outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+              />
+              <button 
+                type="submit"
+                className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition-colors"
+              >
+                Save API Key
+              </button>
+            </form>
+
+            <div className="mt-6 flex flex-col gap-4 text-center">
+              <a 
+                href="https://aistudio.google.com/app/apikey" 
+                target="_blank" 
+                rel="noreferrer"
+                className="text-xs text-primary-500 font-bold hover:underline"
+              >
+                Get a free API Key from Google AI Studio
+              </a>
+              
+              {apiKey && (
+                <button 
+                  onClick={handleRemoveKey}
+                  className="text-xs text-red-500 font-bold hover:underline"
+                >
+                  Remove saved key
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Empty State Instruction */}
-      {images.length === 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 max-w-md w-full px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl flex items-center gap-4 animate-bounce">
+      {images.length === 0 && !isCameraOpen && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 max-w-md w-full px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl flex items-center gap-4 animate-bounce z-40">
           <div className="p-2 bg-primary-100 rounded-lg">
             <Plus className="w-5 h-5 text-primary-600" />
           </div>

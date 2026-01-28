@@ -5,7 +5,8 @@ import { OCRConfig } from '../types';
 export const processImageOCR = async (
   imageUrl: string, 
   config: OCRConfig, 
-  onProgress: (progress: number) => void
+  onProgress: (progress: number) => void,
+  apiKey: string
 ): Promise<string> => {
   // We utilize a canvas to prepare the image and still support pre-processing options
   const img = new Image();
@@ -44,8 +45,12 @@ export const processImageOCR = async (
   // Report initial progress
   onProgress(0.2);
 
-  // Initialize the Gemini API client
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please enter your Google Gemini API Key.");
+  }
+
+  // Initialize the Gemini API client with the user-provided key
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
     // We use gemini-3-flash-preview for high speed and excellent vision-to-text capabilities
@@ -73,6 +78,6 @@ export const processImageOCR = async (
     return response.text || "No text detected in the image.";
   } catch (error) {
     console.error("OCR process failed with Gemini API:", error);
-    throw new Error("Failed to extract text using AI service.");
+    throw new Error("Failed to extract text. Please check your API Key and internet connection.");
   }
 };
