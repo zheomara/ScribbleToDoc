@@ -153,37 +153,93 @@ const App: React.FC = () => {
     }
 
     setIsProcessing(true);
-    const updatedImages = [...images];
-    let accumulatedText = finalText;
 
-    for (let i = 0; i < updatedImages.length; i++) {
-      if (updatedImages[i].status === 'completed') continue;
-      
-      updatedImages[i].status = 'processing';
-      setImages([...updatedImages]);
+    // Filter which items need processing
+    const pendingItems = images
+      .map((img, index) => ({ img, index }))
+      .filter(item => item.img.status !== 'completed');
+
+    if (pendingItems.length === 0) {
+      setIsProcessing(false);
+      return;
+    }
+
+    // Determine the starting index for appending text to ensure order
+    const firstPendingIndex = pendingItems[0].index;
+    let nextIndexToAppend = firstPendingIndex;
+    
+    // Map to hold text results temporarily until they are ready to be appended in order
+    const completedTexts = new Map<number, string>();
+
+    // Parallel Processing Queue Configuration
+    const CONCURRENCY_LIMIT = 3;
+    let queuePointer = 0;
+
+    // Helper function to append text in correct order
+    const tryAppendText = () => {
+      setFinalText(prev => {
+        let newText = prev;
+        while (completedTexts.has(nextIndexToAppend)) {
+          const textChunk = completedTexts.get(nextIndexToAppend);
+          if (textChunk) {
+            newText = newText ? newText + '\n\n' + textChunk : textChunk;
+          }
+          // Cleanup map and move to next
+          completedTexts.delete(nextIndexToAppend);
+          nextIndexToAppend++;
+        }
+        return newText;
+      });
+    };
+
+    // Worker function
+    const processItem = async (item: { img: BatchImage, index: number }) => {
+      // 1. Set status to processing
+      setImages(prev => prev.map((img, i) => i === item.index ? { ...img, status: 'processing' } : img));
 
       try {
+        // 2. Process OCR
         const text = await processImageOCR(
-          updatedImages[i].previewUrl, 
-          config, 
+          item.img.previewUrl,
+          config,
           (progress) => {
-            setImages(prev => prev.map((img, idx) => idx === i ? { ...img, progress } : img));
+            setImages(prev => prev.map((img, i) => i === item.index ? { ...img, progress } : img));
           },
           apiKey
         );
-        updatedImages[i].processedText = text;
-        updatedImages[i].status = 'completed';
+
+        // 3. Mark complete
+        setImages(prev => prev.map((img, i) => i === item.index ? { ...img, status: 'completed', processedText: text } : img));
         
-        // Update both the queue and the editor text in real-time
-        accumulatedText = accumulatedText ? accumulatedText + '\n\n' + text : text;
-        setFinalText(accumulatedText);
-        
+        // 4. Store result
+        completedTexts.set(item.index, text);
+
       } catch (err) {
-        console.error("OCR Error for image " + i, err);
-        updatedImages[i].status = 'error';
+        console.error(`Error processing image ${item.index}`, err);
+        setImages(prev => prev.map((img, i) => i === item.index ? { ...img, status: 'error' } : img));
+        
+        // Add placeholder so the order isn't broken for subsequent pages
+        completedTexts.set(item.index, "[Error: Failed to process this page]");
+      } finally {
+        // 5. Try to append whatever we have, in order
+        tryAppendText();
       }
-      setImages([...updatedImages]);
-    }
+    };
+
+    // Worker Loop
+    const runWorker = async () => {
+      while (queuePointer < pendingItems.length) {
+        const item = pendingItems[queuePointer++];
+        await processItem(item);
+      }
+    };
+
+    // Start workers
+    const workers = Array(Math.min(CONCURRENCY_LIMIT, pendingItems.length))
+      .fill(null)
+      .map(() => runWorker());
+
+    await Promise.all(workers);
     setIsProcessing(false);
   };
 
@@ -408,7 +464,7 @@ const App: React.FC = () => {
                   className="w-full py-4 bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-primary-200 dark:shadow-none"
                 >
                   {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-                  {isProcessing ? `Processing (${processedCount}/${images.length})...` : isAllDone ? "Batch Complete" : "Start Batch Conversion"}
+                  {isProcessing ? `Processing...` : isAllDone ? "Batch Complete" : "Start Batch Conversion"}
                 </button>
                 
                 {processedCount > 0 && (

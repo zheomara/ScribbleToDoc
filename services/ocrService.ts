@@ -8,7 +8,6 @@ export const processImageOCR = async (
   onProgress: (progress: number) => void,
   apiKey: string
 ): Promise<string> => {
-  // We utilize a canvas to prepare the image and still support pre-processing options
   const img = new Image();
   img.src = imageUrl;
   
@@ -17,15 +16,35 @@ export const processImageOCR = async (
     img.onerror = reject;
   });
 
+  // Performance Optimization: Resize huge images
+  // Cameras often capture 12MP+ (4000x3000). 
+  // Resizing to max dimension 1536px reduces pixel count by ~6-8x, 
+  // dramatically speeding up canvas ops and network upload 
+  // while maintaining enough resolution for handwriting recognition.
+  const MAX_DIMENSION = 1536;
+  let width = img.width;
+  let height = img.height;
+
+  if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+    if (width > height) {
+      height = Math.round((height * MAX_DIMENSION) / width);
+      width = MAX_DIMENSION;
+    } else {
+      width = Math.round((width * MAX_DIMENSION) / height);
+      height = MAX_DIMENSION;
+    }
+  }
+
   const canvas = document.createElement('canvas');
-  canvas.width = img.width;
-  canvas.height = img.height;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error("Could not get canvas context");
 
-  ctx.drawImage(img, 0, 0);
+  // Draw scaled image
+  ctx.drawImage(img, 0, 0, width, height);
 
-  // Apply grayscale and contrast enhancements which often help vision models with handwritten notes
+  // Apply grayscale and contrast enhancements
   if (config.grayscale) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
@@ -38,22 +57,20 @@ export const processImageOCR = async (
     ctx.putImageData(imageData, 0, 0);
   }
 
-  // Convert to high-quality JPEG for transmission to the Gemini API
-  const processedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  // Convert to JPEG with reasonable quality (0.85 is a sweet spot for size/quality)
+  const processedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
   const base64Data = processedDataUrl.split(',')[1];
 
   // Report initial progress
-  onProgress(0.2);
+  onProgress(0.3);
 
   if (!apiKey) {
     throw new Error("API Key is missing. Please enter your Google Gemini API Key.");
   }
 
-  // Initialize the Gemini API client with the user-provided key
   const ai = new GoogleGenAI({ apiKey });
 
   try {
-    // We use gemini-3-flash-preview for high speed and excellent vision-to-text capabilities
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
