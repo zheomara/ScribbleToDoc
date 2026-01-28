@@ -1,0 +1,7 @@
+{
+  "name": "ScribbleToDoc",
+  "description": "Transform your handwritten notes into professional Word documents using advanced OCR and batch processing.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
