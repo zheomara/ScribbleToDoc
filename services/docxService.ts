@@ -8,40 +8,57 @@ export const generateDocxBlob = async (content: string, title: string = "Transcr
   const globalDocx = (window as any).docx || (window as any).DOCX;
   
   if (!globalDocx) {
-    console.error("Docx library not found on window object (checked window.docx and window.DOCX).");
-    // If we're here, the script might have failed to load or is an ESM build on a browser expecting UMD
-    throw new Error("Docx library not initialized. This can happen if the CDN script failed to load or hasn't finished loading. Please refresh the page or check your connection.");
+    console.error("Docx library not found on window object.");
+    throw new Error("Docx library not initialized. Please refresh the page.");
   }
 
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = globalDocx;
+  const { Document, Packer, Paragraph, TextRun } = globalDocx;
 
-  if (!Document || !Packer) {
-    console.error("Docx library components missing from global object:", globalDocx);
-    throw new Error("The Docx library was found but its components (Document, Packer) are missing. This may be due to a version mismatch or an incorrect script build.");
-  }
+  // Safe access to HeadingLevel, falling back to string literals if the Enum isn't loaded correctly
+  const HeadingLevel = globalDocx.HeadingLevel || {
+    TITLE: "Title",
+    HEADING_1: "Heading1",
+    HEADING_2: "Heading2",
+    HEADING_3: "Heading3",
+    HEADING_4: "Heading4"
+  };
+
+  // XML Sanitizer: Removes control characters (ASCII 0-31) except Tab, Line Feed, Carriage Return
+  // This is critical because Word will refuse to open files containing null bytes or other control codes.
+  const sanitize = (str: string): string => {
+    if (!str) return "";
+    return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  };
 
   const lines = content.split('\n');
   const sections: any[] = [];
 
   lines.forEach((line) => {
-    const text = line.trim();
-    if (!text) return;
+    const rawText = line.trim();
+    if (!rawText) return;
+
+    const text = sanitize(rawText);
 
     if (text.startsWith('# ')) {
       sections.push(new Paragraph({
-        text: text.substring(2),
+        text: text.substring(2).trim(),
         heading: HeadingLevel.HEADING_1,
         spacing: { before: 240, after: 120 }
       }));
     } else if (text.startsWith('## ')) {
       sections.push(new Paragraph({
-        text: text.substring(3),
+        text: text.substring(3).trim(),
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 200, after: 100 }
       }));
     } else if (text.startsWith('- ')) {
       sections.push(new Paragraph({
-        text: text.substring(2),
+        children: [
+          new TextRun({
+            text: text.substring(2).trim(),
+            size: 24, // 12pt
+          })
+        ],
         bullet: { level: 0 },
         spacing: { after: 120 }
       }));
@@ -64,7 +81,7 @@ export const generateDocxBlob = async (content: string, title: string = "Transcr
         properties: {},
         children: [
           new Paragraph({
-            text: title,
+            text: sanitize(title),
             heading: HeadingLevel.TITLE,
             spacing: { after: 400 }
           }),
@@ -73,7 +90,8 @@ export const generateDocxBlob = async (content: string, title: string = "Transcr
               new TextRun({
                 text: `Generated on: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
                 italics: true,
-                color: "666666"
+                color: "666666",
+                size: 20 // 10pt
               })
             ],
             spacing: { after: 400 }
@@ -96,13 +114,11 @@ export const generateDocxBlob = async (content: string, title: string = "Transcr
 export const generateDocx = async (content: string, filename: string) => {
   try {
     const blob = await generateDocxBlob(content);
-    // saveAs is usually provided by FileSaver.js
     const saveAs = (window as any).saveAs;
     
     if (saveAs) {
       saveAs(blob, `${filename}.docx`);
     } else {
-      console.warn("saveAs not found on window, falling back to manual link download.");
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -116,7 +132,6 @@ export const generateDocx = async (content: string, filename: string) => {
     }
   } catch (error) {
     console.error("Critical error generating DOCX download:", error);
-    alert(error instanceof Error ? error.message : "Could not generate Word document. Please check the console for errors.");
-    throw error;
+    alert(error instanceof Error ? error.message : "Could not generate Word document.");
   }
 };
