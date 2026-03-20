@@ -91,10 +91,10 @@ export const processImageOCR = async (
     }
   }
 
-  // Access the API key directly from process.env as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
   try {
+    // Access the API key directly from process.env as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-lite-preview',
       contents: {
