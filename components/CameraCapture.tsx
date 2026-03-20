@@ -54,10 +54,10 @@ const CameraCapture: React.FC<Props> = ({ onCapture }) => {
   };
 
   return (
-    <div className="flex flex-col items-center bg-black">
+    <div className="flex flex-col items-center bg-slate-900 rounded-2xl overflow-hidden">
       <div className="relative w-full aspect-[4/3] bg-black">
         {error ? (
-          <div className="absolute inset-0 flex items-center justify-center text-white p-6 text-center">
+          <div className="absolute inset-0 flex items-center justify-center text-slate-300 p-6 text-center text-sm font-medium">
             {error}
           </div>
         ) : (
@@ -65,17 +65,19 @@ const CameraCapture: React.FC<Props> = ({ onCapture }) => {
             ref={videoRef} 
             autoPlay 
             playsInline 
-            className="w-full h-full object-contain"
+            className="w-full h-full object-cover"
           />
         )}
       </div>
-      <div className="w-full p-8 bg-white dark:bg-slate-900 flex justify-center gap-6">
+      <div className="w-full p-6 bg-slate-900 flex justify-center gap-6 border-t border-slate-800">
         <button 
           onClick={captureFrame}
           disabled={!!error}
-          className="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center shadow-lg active:scale-90 transition-transform disabled:opacity-50"
+          className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg active:scale-95 transition-transform disabled:opacity-50"
         >
-          <div className="w-12 h-12 rounded-full border-4 border-white" />
+          <div className="w-14 h-14 rounded-full border-[3px] border-slate-900 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-white" />
+          </div>
         </button>
       </div>
       <canvas ref={canvasRef} className="hidden" />

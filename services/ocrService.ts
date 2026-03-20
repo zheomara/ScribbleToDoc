@@ -1,12 +1,17 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { OCRConfig } from '../types';
+import { OCRConfig } from '../types.ts';
+import Tesseract from 'tesseract.js';
 
+/**
+ * Processes an image using Gemini-3-flash-preview to perform OCR on handwritten text.
+ * Uses the API key from the environment.
+ * Falls back to Tesseract.js if offline.
+ */
 export const processImageOCR = async (
   imageUrl: string, 
   config: OCRConfig, 
-  onProgress: (progress: number) => void,
-  apiKey: string
+  onProgress: (progress: number) => void
 ): Promise<string> => {
   const img = new Image();
   img.src = imageUrl;
@@ -16,12 +21,8 @@ export const processImageOCR = async (
     img.onerror = reject;
   });
 
-  // Performance Optimization: Resize huge images
-  // Cameras often capture 12MP+ (4000x3000). 
-  // Resizing to max dimension 1536px reduces pixel count by ~6-8x, 
-  // dramatically speeding up canvas ops and network upload 
-  // while maintaining enough resolution for handwriting recognition.
-  const MAX_DIMENSION = 1536;
+  // Optimize performance by resizing large images before processing
+  const MAX_DIMENSION = 1024;
   let width = img.width;
   let height = img.height;
 
@@ -41,10 +42,9 @@ export const processImageOCR = async (
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error("Could not get canvas context");
 
-  // Draw scaled image
   ctx.drawImage(img, 0, 0, width, height);
 
-  // Apply grayscale and contrast enhancements
+  // Apply grayscale and contrast enhancements if requested to improve legibility
   if (config.grayscale) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
@@ -57,22 +57,46 @@ export const processImageOCR = async (
     ctx.putImageData(imageData, 0, 0);
   }
 
-  // Convert to JPEG with reasonable quality (0.85 is a sweet spot for size/quality)
   const processedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
   const base64Data = processedDataUrl.split(',')[1];
 
-  // Report initial progress
-  onProgress(0.3);
+  onProgress(0.3); // Mark initial pre-processing as 30% complete
 
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please enter your Google Gemini API Key.");
+  // Offline Fallback using Tesseract.js
+  if (!navigator.onLine) {
+    console.log("Offline mode detected. Falling back to local Tesseract.js OCR.");
+    try {
+      // Map language codes (Gemini uses standard names/codes, Tesseract uses specific 3-letter codes)
+      const tessLang = config.language.toLowerCase().startsWith('es') ? 'spa' 
+                     : config.language.toLowerCase().startsWith('fr') ? 'fra' 
+                     : config.language.toLowerCase().startsWith('de') ? 'deu' 
+                     : 'eng';
+
+      const worker = await Tesseract.createWorker(tessLang, 1, {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            // Map Tesseract progress (0-1) to our remaining 30-100% progress
+            onProgress(0.3 + (m.progress * 0.7));
+          }
+        }
+      });
+      
+      const ret = await worker.recognize(processedDataUrl);
+      await worker.terminate();
+      onProgress(1.0);
+      return ret.data.text || "No text detected in the image.";
+    } catch (error) {
+      console.error("Offline OCR failed:", error);
+      throw new Error("Offline OCR failed. Please try again or connect to the internet.");
+    }
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  // Access the API key directly from process.env as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-flash-lite-preview',
       contents: {
         parts: [
           {
@@ -84,6 +108,7 @@ export const processImageOCR = async (
           {
             text: `Transcribe the handwritten text in this image accurately. 
             Maintain original paragraphs and structure. 
+            If you detect tabular data or tables, format them cleanly as Markdown tables.
             Language: ${config.language}. 
             Output ONLY the transcribed text without any greetings or explanations.`
           },
@@ -94,7 +119,31 @@ export const processImageOCR = async (
     onProgress(1.0);
     return response.text || "No text detected in the image.";
   } catch (error) {
-    console.error("OCR process failed with Gemini API:", error);
-    throw new Error("Failed to extract text. Please check your API Key and internet connection.");
+    console.warn("OCR process failed with Gemini API, attempting ChatGPT fallback:", error);
+    
+    try {
+      const fallbackResponse = await fetch('/api/ocr-openai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          base64Image: base64Data,
+          language: config.language
+        })
+      });
+
+      if (!fallbackResponse.ok) {
+        const errorData = await fallbackResponse.json();
+        throw new Error(errorData.error || "ChatGPT fallback failed");
+      }
+
+      const data = await fallbackResponse.json();
+      onProgress(1.0);
+      return data.text || "No text detected in the image.";
+    } catch (fallbackError) {
+      console.error("Both Gemini and ChatGPT fallback failed:", fallbackError);
+      throw new Error("Failed to extract text. Both primary and fallback AI services encountered an error.");
+    }
   }
 };

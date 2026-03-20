@@ -1,30 +1,24 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScribbleToDoc - Handwriting to DOCX</title>
+    <title>ScribbleToDoc - Handwriting to PDF</title>
     
-    <!-- Polyfill for process.env to prevent crashes in browser environments -->
-    <script>
-      window.process = {
-        env: {
-          NODE_ENV: 'development',
-          // The API key is expected to be injected by the build tool or environment.
-          // This prevents "process is not defined" errors.
-        }
-      };
-    </script>
+    <!-- Preconnect to CDNs to speed up initial connection -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://esm.sh">
 
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Docx.js - Using unpkg v7.8.2 which has a very stable UMD build -->
-    <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
-    <!-- FileSaver.js -->
-    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    <!-- JSZip -->
-    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <!-- Stable UMD builds for libraries that don't need to be in the ESM graph -->
+    <!-- Libraries are deferred to prevent render blocking -->
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js" defer></script>
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js" defer></script>
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
     
     <script>
       tailwind.config = {
@@ -51,9 +45,24 @@
     </script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-      body {
-        font-family: 'Inter', sans-serif;
+      
+      :root {
+        --bg-color: #f8fafc;
+        --text-primary: #0f172a;
       }
+      .dark {
+        --bg-color: #020617;
+        --text-primary: #f8fafc;
+      }
+      
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
       .custom-scrollbar::-webkit-scrollbar {
         width: 6px;
       }
@@ -65,24 +74,27 @@
         border-radius: 10px;
       }
       .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #475569;
+        background: #334155;
+      }
+      
+      /* Professional card styling */
+      .pro-card {
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+        border: 1px solid #f1f5f9;
+      }
+      .dark .pro-card {
+        background: #0f172a;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        border: 1px solid #1e293b;
       }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^18.3.1/",
-    "react/": "https://esm.sh/react@^18.3.1/",
-    "react": "https://esm.sh/react@^18.3.1",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
-  }
-}
-</script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 min-h-screen">
     <div id="root"></div>
     <!-- Load the main application entry point -->
-    <script type="module" src="./index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

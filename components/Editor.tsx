@@ -29,28 +29,28 @@ const Editor: React.FC<Props> = ({ content, onChange, placeholder }) => {
   };
 
   return (
-    <div className="flex flex-col h-full border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-all">
-      <div className="flex items-center gap-1 p-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-        <button onClick={() => insertText('**', '**')} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="Bold">
+    <div className="flex flex-col h-full rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-primary-500 transition-shadow">
+      <div className="flex items-center gap-1 p-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <button onClick={() => insertText('**', '**')} className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300" title="Bold">
           <Bold className="w-4 h-4" />
         </button>
-        <button onClick={() => insertText('_', '_')} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="Italic">
+        <button onClick={() => insertText('_', '_')} className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300" title="Italic">
           <Italic className="w-4 h-4" />
         </button>
-        <div className="w-[1px] h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
-        <button onClick={() => insertText('# ')} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="Heading 1">
+        <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+        <button onClick={() => insertText('# ')} className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300" title="Heading 1">
           <Heading1 className="w-4 h-4" />
         </button>
-        <button onClick={() => insertText('## ')} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="Heading 2">
+        <button onClick={() => insertText('## ')} className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300" title="Heading 2">
           <Heading2 className="w-4 h-4" />
         </button>
-        <button onClick={() => insertText('- ')} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors" title="List Item">
+        <button onClick={() => insertText('- ')} className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300" title="List Item">
           <List className="w-4 h-4" />
         </button>
       </div>
       <textarea
         id="main-editor"
-        className="flex-1 p-6 bg-transparent outline-none resize-none text-lg font-medium leading-relaxed custom-scrollbar min-h-[400px]"
+        className="flex-1 p-6 bg-white dark:bg-slate-900 outline-none resize-none text-base font-normal leading-relaxed text-slate-800 dark:text-slate-200 custom-scrollbar min-h-[400px]"
         value={content}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
