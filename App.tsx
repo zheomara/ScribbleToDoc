@@ -173,7 +173,8 @@ const App: React.FC = () => {
       } catch (err) {
         console.error(`Error processing image ${item.index}`, err);
         setImages(prev => prev.map((img, i) => i === item.index ? { ...img, status: 'error' } : img));
-        completedTexts.set(item.index, "[Error: Transcription failed]");
+        const errorMessage = err instanceof Error ? err.message : "Transcription failed";
+        completedTexts.set(item.index, `[Error: ${errorMessage}]`);
       } finally {
         tryAppendText();
       }

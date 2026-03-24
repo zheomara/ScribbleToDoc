@@ -134,16 +134,28 @@ export const processImageOCR = async (
       });
 
       if (!fallbackResponse.ok) {
-        const errorData = await fallbackResponse.json();
-        throw new Error(errorData.error || "ChatGPT fallback failed");
+        let errorMsg = "ChatGPT fallback failed";
+        try {
+          const errorData = await fallbackResponse.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          errorMsg = `Server returned ${fallbackResponse.status} ${fallbackResponse.statusText}`;
+        }
+        throw new Error(errorMsg);
       }
 
-      const data = await fallbackResponse.json();
+      let data;
+      try {
+        data = await fallbackResponse.json();
+      } catch (e) {
+        throw new Error("Received invalid response from server (likely HTML instead of JSON). Check Vercel routing.");
+      }
+      
       onProgress(1.0);
       return data.text || "No text detected in the image.";
-    } catch (fallbackError) {
+    } catch (fallbackError: any) {
       console.error("Both Gemini and ChatGPT fallback failed:", fallbackError);
-      throw new Error("Failed to extract text. Both primary and fallback AI services encountered an error.");
+      throw new Error(`AI processing failed: ${fallbackError.message || 'Unknown error'}`);
     }
   }
 };
